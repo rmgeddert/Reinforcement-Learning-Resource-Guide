@@ -17,7 +17,7 @@ This is a resource guide/tutorial for those interested in reinforcement learning
 Reinforcement learning is the process by which someone learns which of several actions to take in any given situation, by trying these actions numerous times and learning whether these actions are good or bad based on feedback.
 
 ![Sutton & Barto 2018 Reinforcement Learning](images/SuttonBartoRL.png)
-Sutton & Barto 2018 agent-environment interaction diagram (Figure 3.1)
+<br>Sutton & Barto 2018 agent-environment interaction diagram (Figure 3.1)
 
 Put in more concrete terms, reinforcement learning considers an **agent** that exists in an **environment**. The environment is the world that the agent interacts with. At each time step *t*, the agent is shown a state of the world *s*. This state can be "partially observed", in the sense that the agent might not know everything about how the world has changed, or even if it has changed at all. Regardless, given this state, the agent now chooses one of several **actions**. Learning which action to perform in any given state is the problem reinforcement learning is attempting to solve. After performing an action, the agent receives a **reward** feedback that lets it know whether the action it performed was a good one. The agents objective is to maximize reward in the long run, known as the **return**.
 
@@ -148,7 +148,7 @@ On any given trial, which arm should the agent choose? As described above, we co
 Enter the [softmax function](https://en.wikipedia.org/wiki/Softmax_function). The softmax function takes a set of numbers as an input (in our case the Q-values of the actions) and returns a set of probabilities proportional to each value. That is, the higher the Q-value compared to other values, the higher the probability associated with that action. More specifically, each action probability is proportional to the exponential of its corresponding Q-value, normalized by the exponential of all the Q-values. **Here is a great [medium article](https://medium.com/data-science-bootcamp/understand-the-softmax-function-in-minutes-f3a59641e86d) explaining it.**
 
 ![alt text](images/Softmax_Udacity.png)
-Udacity Slide on the Softmax Function
+<br>Udacity Slide on the Softmax Function
 
 Linguistically, the softmax function is a **"soft"** maximum in the sense that it picks the maximum but is "soft" about it, sometimes it will pick another option instead. Consider a "hard" max function, which would always choose the best option (highest Q-value). The equation for the softmax function is: `e^(Q-value) / sum over all Q-values(e^(Q-value))`.
 
