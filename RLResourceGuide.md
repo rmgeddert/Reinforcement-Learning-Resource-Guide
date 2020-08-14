@@ -115,10 +115,10 @@ We will be programming our agent in **R**. We will start by initializing a few p
 data_out <- "C:/Users/..." #the folder where you want the data to be outputted
 
 #veriable declaration
-nTrials <- 1000 #number of trials
+nTrials <- 1000 #number of trials to model
 nArms <- 2 #number of bandit arms
 banditArms <- c(1:nArms) #array of length nArms
-armProbabilities <- c(0.7, 0.3) #arm reward probabilies
+armProbabilities <- c(0.7, 0.3) #probability of returning reward for each arm
 ```
 
 ### Step 1: Representing each Arm's *Expected Value*
@@ -126,10 +126,13 @@ armProbabilities <- c(0.7, 0.3) #arm reward probabilies
 In order for our agent to complete this task, it first needs to represent how valuable it thinks each action is. We operationalize this with something known as a Q-value. A Q-value is a numerical representation of the expected average reward of an action. If an action gives a reward of `$0` half of the time and `$100` half of the time, its Q-value is `$50`. If an action gives a reward `0` 20% of the time and `1` 80% of the time, its Q-value is `0.8`. For now, we will initialize our Q-values for each arm at `0`. With time (and rewards), these will be updated to approximate the correct expected rewards (i.e., the Q-values should equal to `0.7` and `0.3`).
 
 #### Coding:
-Let's initialize our Q-values for each arm at 0.
+Let's initialize our Q-values for each arm at 0. We'll make a variable `currentQs` that will store the Q value only for the current trial (since these are needed to determine which arm our agent will choose) as well as a `trialQs` variable that stores Q values at each time step for later visualization.
+
 ``` R
 Qi <- 0 #initial Q value
-currentQs <- vector(length = length(banditArms)) #vector that contains the Q-value for each arm (vector length = nArms)
+currentQs <- vector(length = length(banditArms)) #vector that contains the most recent Q-value for each arm
+trialQs <- matrix(data = NA, nrow = nTrials, ncol = nArms) #stores Q at each time for visualization later
+
 
 #assign initial Q value
 for (arm in banditArms) {
@@ -185,12 +188,13 @@ To summarize, a small `beta` (< 1) approximates more exploratory/random behavior
 >See this towardsdatascience [article](https://towardsdatascience.com/softmax-function-simplified-714068bf8156) for more information on the softmax function.
 
 #### Coding:
-We will initialize a beta value (let's pick 5, a slightly greedier policy), as well as a vector that contains the probabilities of choosing each arm (probabilities add up to 1). We will also initialize a vector that contains which action we picked. Once we have our action probabilities, we will choose one of those action stochastically (based on the probabilities) and save our choice in the `choices` vector.
+We will initialize a beta value (let's pick 5, a slightly greedier policy), as well as a vector that contains the probabilities of choosing each arm (probabilities add up to 1). We will also initialize a vector that contains which action we picked. Once we have our action probabilities, we will choose one of those action stochastically (based on the probabilities) and save our choice in the `choices` vector. `choiceProbs` will contain the probabilities of choosing each arm for the current time step. We'll also make a `trialChoiceProbs` variable which will let us visualize the choice probabilities at each trial later.
 
 ``` R
 beta <- 5 #inverse temperature
-choiceProbs <- vector(length = length(banditArms))
 choices <- vector(length = nTrials)
+choiceProbs <- vector(length = length(banditArms))
+trialChoiceProbs <- matrix(data = NA, nrow = nTrials, ncol = nArms) #probabilities at each time step
 ```
 
 Later on in the code we will also have to calculate the choice probabilities given their Q-values for each trial. This will look like this:
@@ -207,6 +211,9 @@ For (trial in 1:nTrials) {
   for (arm in banditArms) {
       choiceProbs[arm] = exp(beta * currentQs[arm]) / sumExp
   }
+
+  #save choice probabilities in matrix for later visualization
+  trialChoiceProbs[trial,] <- choiceProbs
 ```
 
 Next we choose an action based on those probabilities.
@@ -276,7 +283,7 @@ alpha <- .01 #learning rate
 rewards <- vector(length = nTrials)
 ```
 
-In our trial loop, we now add code that gets a reward based on the choice we made, and stores it in the `rewards` vector. Then, we update our Q-value for the arm that we chose based on this reward.
+In our trial loop, we now add code that gets a reward based on the choice we made, and stores it in the `rewards` vector. Then, we update our Q-value for the arm that we chose based on this reward. We'll also save these Q-values in a matrix so we can visualize the Q-values afterwards.
 
 ``` R
   #given bandit arm choice, get reward outcome (based on armProbabilities)
@@ -284,6 +291,9 @@ In our trial loop, we now add code that gets a reward based on the choice we mad
 
   #given reward outcome, update Q values
   currentQs[choices[trial]] <- currentQs[choices[trial]] + alpha * (rewards[trial] - currentQs[choices[trial]])
+
+  #save Q values in matrix of all Q-values for later visualization
+  allQs[trial,] <- currentQs
 ```
 
 -----
@@ -307,14 +317,16 @@ data_out <- "C:/Users/..." #the folder where you want the data to be outputted
 
 #data generation specifications
 nTrials <- 1000
-nArms <- 2 #try 5 here instead
+nArms <- 2 #try a different here instead
 banditArms <- c(1:nArms)
-armProbabilities <- c(0.7, 0.3) #c(0.7, 0.3, 0.5, 0.1, 0.6) each arm needs its own reward probability
+armProbabilities <- c(0.7, 0.3) #each arm needs its own reward probability
 alpha <- .01 #learning rate, play around with this
 beta <- 5 #inverse temperature, and with this
 Qi <- 0 #initial Q values
 currentQs <- vector(length = length(banditArms))
+trialQs <- matrix(data = NA, nrow = nTrials, ncol = nArms)
 choiceProbs <- vector(length = length(banditArms))
+trialChoiceProbs <- matrix(data = NA, nrow = nTrials, ncol = nArms)
 choices <- vector(length = nTrials)
 rewards <- vector(length = nTrials)
 
@@ -336,6 +348,9 @@ for (trial in 1:nTrials) {
         choiceProbs[arm] = exp(beta * currentQs[arm]) / sumExp
     }
 
+    #save choice probabilities in matrix for later visualization
+    trialChoiceProbs[trial,] <- choiceProbs
+
     # choose action given choice probabilities, save in choices vector
     choices[trial] <- sample(banditArms, size = 1, replace = FALSE, prob = choiceProbs)
 
@@ -344,6 +359,9 @@ for (trial in 1:nTrials) {
 
     #given reward outcome, update Q values
     currentQs[choices[trial]] <- currentQs[choices[trial]] + alpha * (rewards[trial] - currentQs[choices[trial]])
+
+    #save Q values in matrix of all Q-values
+    trialQs[trial,] <- currentQs
 }
 
 #combine choices and rewards into dataframe
@@ -353,7 +371,65 @@ df <- data.frame(choices, rewards)
 fileName <- paste(data_out, "Generated_Data.csv",sep = "/")
 write.csv(df,fileName, row.names = FALSE)
 ```
-Congrats, you just modeled your first reinforcement learning agent!
+
+### Looking under the hood
+
+Hopefully the script ran without issues. Still, other than the out putted data file of trial choices and rewards our script doesn't give us much information about how our agent actually learned to perform the task.
+
+Let's first visualize the development of the Q values for each arm over time.
+
+``` R
+library(ggplot2)
+library(reshape2)
+
+#turn trialQs matrix into dataframe
+Qvalues_df <- as.data.frame(trialQs)
+
+#add column names
+for (i in 1:length(Qvalues_df)){
+  colnames(Qvalues_df)[i] <- paste("Arm", i, sep="")
+}
+
+#add column of trial counts
+Qvalues_df$trialCount <- as.numeric(row.names(Qvalues_df))
+
+#turn df into long format for plotting
+Qvalues_long <- melt(Qvalues_df, id = "trialCount")
+
+#plot Q values over time
+ggplot(data=Qvalues_long, aes(x = trialCount, y = value, color = variable)) +
+  geom_point(size = 0.5) +
+  ggtitle("Q values by Trial")
+
+```
+![alt text](images/Q_values_by_trial.png)
+
+As you can see, our Q values begin at our initial value of `0`. As the agent chooses actions over time, it updates the Q-values until they eventually approximate the correct Q-values of `0.7` for **Arm 1** and `0.3` for **Arm 2**.
+
+One important thing to notice is that the Q values for **Arm 1** both better approximates the correct value of `0.7` and are significantly more variable. This is a result of our inverse temperature parameter. Since our agent is fairly greedy (`beta` = 5 which is greater than 1), our agent chooses 'Arm 1' significantly more often than `Arm 2`. 
+
+``` R
+#turn trial choice probs into dataframe
+ChoiceProbs_df <- as.data.frame(trialChoiceProbs)
+
+#add column names
+for (i in 1:length(ChoiceProbs_df)){
+  colnames(ChoiceProbs_df)[i] <- paste("Arm", i, sep="")
+}
+
+#add column of trial counts
+ChoiceProbs_df$trialCount <- as.numeric(row.names(ChoiceProbs_df))
+
+#turn df into long format for plotting
+ChoiceProbs_long <- melt(ChoiceProbs_df, id = "trialCount")
+
+#plot Q values over time
+ggplot(data=ChoiceProbs_long, aes(x = trialCount, y = value, color = variable)) +
+  geom_point(size = 0.5) +
+  ggtitle("Probability of Choosing Arm by Trial")
+```
+
+![alt text](images/choice_probabilities_by_trial.png)
 
 -----
 
@@ -577,6 +653,6 @@ fit$par[1]
 fit$par[2]
 ```
 
-if everything has gone well, you have now simulated data for an agent. You specified a learning rate and inverse temperature. Next, you ran an RStan model to create a parameter estimate of these. Hopefully the alpha and beta estimates approximated the original values you specified!
+If everything has gone well, you have now simulated data for an agent. You specified a learning rate and inverse temperature. Next, you ran an RStan model to create a parameter estimate of these. Hopefully the alpha and beta estimates approximated the original values you specified!
 
 -----
