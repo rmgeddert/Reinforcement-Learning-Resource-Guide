@@ -406,7 +406,9 @@ ggplot(data=Qvalues_long, aes(x = trialCount, y = value, color = variable)) +
 
 As you can see, our Q values begin at our initial value of `0`. As the agent chooses actions over time, it updates the Q-values until they eventually approximate the correct Q-values of `0.7` for **Arm 1** and `0.3` for **Arm 2**.
 
-One important thing to notice is that the Q values for **Arm 1** both better approximates the correct value of `0.7` and are significantly more variable. This is a result of our inverse temperature parameter. Since our agent is fairly greedy (`beta` = 5 which is greater than 1), our agent chooses 'Arm 1' significantly more often than `Arm 2`. 
+One important thing to notice is that the Q values for **Arm 1** both better approximates the correct value of `0.7` and are significantly more variable. This is a result of our inverse temperature parameter. Since our agent is fairly greedy (`beta` = 5 which is greater than 1), our agent chooses **Arm 1** significantly more often than **Arm 2** and it can learn **Arm 1**'s correct Q value better and these get updated more frequently. 
+
+One way to visualize this greediness is by plotting the choice probabilities for each arm as they evolve over time:
 
 ``` R
 #turn trial choice probs into dataframe
@@ -430,6 +432,18 @@ ggplot(data=ChoiceProbs_long, aes(x = trialCount, y = value, color = variable)) 
 ```
 
 ![alt text](images/choice_probabilities_by_trial.png)
+
+Initially, the probability of choosing each arm is `0.5`, since the Q-values initialize at the same value of `0`. As the Q-values get updated, however, the agent increasingly chooses **Arm 1** because of its higher Q-value.
+
+Remember from before that the extent to which our agent prefers the best arm is parameterized by the `beta` parameter. Run the simulation again but change the `beta` parameter to `0.5`. If we again visualize the Q values and choice probabilities we see the following:
+
+![alt text](images/Q_values_by_trial2.png)
+
+![alt text](images/choice_probabilities_by_trial2.png)
+
+In this case, our agent is very exploratory - choosing randomly with little regard to the Q-values of the arms. Despite learning that **Arm 1** has a higher Q-value, the agent continues to choose each arm about half of the time. In this case the agent is clearly not maximizing its return, but interestingly it does a much better job of approximating the correct Q-value for **Arm 2** of `0.3`. This is because an agent needs to sample from an arm repeatedly in order to correctly approximate it, something that it wasn't doing previously since our agent was sampling from **Arm 1** predominantly.
+
+And that's it! Congrats on successfully simulating your first RL learning process. Be sure to play around with the learning rate and inverse temperature and vary the number of bandit arms to see how these parameters affect the decisions the agent makes and how well it can learn the arm probabilities.
 
 -----
 
