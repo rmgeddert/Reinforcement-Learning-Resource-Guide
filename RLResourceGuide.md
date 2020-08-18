@@ -263,7 +263,7 @@ To summarize, if the learning rate is low, we will make small changes to our Q-v
 
 If our learning rate is large (close to 1) then we will make big changes to our Q-value. If the learning rate = 1, we will update our Q-value to exactly match the reward outcome of the previous trial. **If our learning rate is too large, we will never converge on the right value because we will always bounce past it**.
 
-A reasonable value for the learning rate is `0.1`, though there is a lot of variation here and many different techniques for changing it dynamically.
+A reasonable value for the learning rate is `0.01`, though there is a lot of variation here and many different techniques for changing it dynamically.
 
 ##### Note:
 An alternative way to think about the learning rate is *how many trials in the past should I consider when setting my Q-value?* In this conceptualization it is often known as a **discount factor**.
@@ -406,7 +406,7 @@ ggplot(data=Qvalues_long, aes(x = trialCount, y = value, color = variable)) +
 
 As you can see, our Q values begin at our initial value of `0`. As the agent chooses actions over time, it updates the Q-values until they eventually approximate the correct Q-values of `0.7` for **Arm 1** and `0.3` for **Arm 2**.
 
-One important thing to notice is that the Q values for **Arm 1** both better approximates the correct value of `0.7` and are significantly more variable. This is a result of our inverse temperature parameter. Since our agent is fairly greedy (`beta` = 5 which is greater than 1), our agent chooses **Arm 1** significantly more often than **Arm 2** and it can learn **Arm 1**'s correct Q value better and these get updated more frequently. 
+One important thing to notice is that the Q values for **Arm 1** both better approximates the correct value of `0.7` and are significantly more variable. This is a result of our inverse temperature parameter. Since our agent is fairly greedy (`beta` = 5 which is greater than 1), our agent chooses **Arm 1** significantly more often than **Arm 2** and it can learn **Arm 1**'s correct Q value better and these get updated more frequently.
 
 One way to visualize this greediness is by plotting the choice probabilities for each arm as they evolve over time:
 
@@ -443,39 +443,73 @@ Remember from before that the extent to which our agent prefers the best arm is 
 
 In this case, our agent is very exploratory - choosing randomly with little regard to the Q-values of the arms. Despite learning that **Arm 1** has a higher Q-value, the agent continues to choose each arm about half of the time. In this case the agent is clearly not maximizing its return, but interestingly it does a much better job of approximating the correct Q-value for **Arm 2** of `0.3`. This is because an agent needs to sample from an arm repeatedly in order to correctly approximate it, something that it wasn't doing previously since our agent was sampling from **Arm 1** predominantly.
 
-And that's it! Congrats on successfully simulating your first RL learning process. Be sure to play around with the learning rate and inverse temperature and vary the number of bandit arms to see how these parameters affect the decisions the agent makes and how well it can learn the arm probabilities.
+And that's it! Congrats on successfully simulating your first RL learning process. Be sure to play around with the learning rate and inverse temperature and vary the number of bandit arms to see how these parameters affect the decisions the agent makes and how well it can learn the arm probabilities.  Hopefully you now have some sense of how an agent can use reinforcement learning to learn which lever arms are best and maximize reward. Given a set of parameters, the agent learned over time and made a series of choices based on this knowledge (the **Q-values** it had learned) and based on its **action policy**.
+
 
 -----
 
 ## Modeling our agent
 
-Hopefully you now have some sense of how an agent can use Q-learning to learn which lever arms are best. However in real life, we aren't setting some parameters and then seeing what data is produced. Rather, we collect some data from a participant performing a bandit task and then we must intuit what the person's strategy is. That is, we must do the above process in reverse. Given the data, what are the parameters that gave rise to this data? Below we will learn how to model the data we produced above to hopefully reveal what the parameter settings were that produced it. In other words, we will perform **parameter estimation** to approximate what the `learning rate` and `inverse temperature` parameters were.
+While the above exercise (hopefully!) was useful in demonstrating the key concepts of reinforcement learning, in real life we don't have access to the parameters that give rise to the data. In fact, that is what modeling is all about! Say we have a human participant perform our 2-armed bandit task. Which lever arms would they pull? Well, as we know, that depends a lot on their personality. Are they very risk-averse or more optimistic? Are they a fast learner or do they need more time? In other words, if our participant was an RL agent, what would their `learning rate` and `inverse temperature` parameters be equal to? We could ask them of course, but this isn't very scientific, and it would be impossible to draw conclusions from. Instead, it would be better if we could estimate this participant's "parameters" using their actual task data.
+
+What we are getting at here is that we need a way to infer parameter values given data. We are essentially performing our earlier data simulation in reverse. Rather than specifying parameters and observing the resultant actions, we are instead observing actions and inferring the parameters that gave rise to that data.
+
+**Below we perform something known as** ***Parameter Estimation*** **to approximate the `learning rate` and `inverse temperature` parameters.**
 
 > Nathaniel Daw's 2009 [*Trial-by-trial data analysis using computational models*](http://www.princeton.edu/~ndaw/d10.pdf) is in awesome reference that covers parameter estimation. See also a [paper by Wilson & Collins](https://elifesciences.org/articles/49547) that covers best practices of modeling behavioral data.
 
-#### Objective
+#### Parameter Estimation
 
-Our objective for the second phase of this tutorial is to do something called **parameter estimation**. Given our data, we would like to estimate the learning rate `alpha` and inverse temperature `beta` that gave rise to that data. It is important to note that since both our agent and our bandit arms were stochastic (that is, probabilistic instead of deterministic), there is necessarily some noise,, so our estimation cannot be perfect. Still, as the number of trials increases we will be increasingly be able to approximate our learning rate and inverse temperature.
+In the second part of this tutorial we are going to perform **parameter estimation** on our simulated data. Given our data, we would like to estimate the learning rate `alpha` and inverse temperature `beta` that gave rise to that data. It is important to note that since both our agent and our bandit arms were stochastic (that is, probabilistic instead of deterministic), there is necessarily some noise, so our estimation cannot be perfect. Still, as the number of trials increases we will be increasingly be able to approximate our learning rate and inverse temperature.
 
->The goal of the next section is to write a model that will return the alpha (learning rate) and beta (inverse temperature) parameter values we used in generating the bandit data we are feeding into the model.
+>The goal of the next section is to create a model that will return the alpha (learning rate) and beta (inverse temperature) parameter values we used in generating the bandit data we are feeding into the model.
 
-Estimating parameters allows us to answer all sorts of interesting scientific questions. How quickly do subjects learn (learning rate), how much do they explore versus exploit (inverse temperature), and many other questions.
+Parameter Estimation is an algorithmic technique that tries out a series of parameter values (called **candidate values**) and then decides which of those parameters are **most likely**. In other words, our model will make a best guess about what the parameters are and keep updating these parameters until it finds some set of parameter values that **maximize** the **likelihood** of the data.
+
+>Steps of parameter estimation:
+>
+>1. Specify a set of parameters at some initial value. (i.e., `alpha = 0.5` and `beta = 1`)
+>2. Calculate how **likely** the data is given those parameters.
+>3. Update the parameters to a new set of values.
+>4. Repeat steps 2 - 3.
+>5. Return the parameter values that make the data the **most likely**.
+
+To clarify, let's refer back to our figure of **Probability of Choosing Arm by Trial** when `alpha = 0.01` and `beta = 5` from earlier.
+
+![alt text](images/choice_probabilities_by_trial.png)
+
+Suppose we had a human subject come in to the lab and perform the task. When looking at our data, we see that from trials 750 - 1000, our human subject chose `Arm 2` 43% of the time. If that is the case, clearly our human subject does **not** have a `beta = 5`. In fact, their behavior sounds much more like it corresponds to our second simulation with `beta = 0.5`.
+
+![alt text](images/choice_probabilities_by_trial2.png)
+
+**This next point cannot be understated.** It is entirely **possible** that despite our agent having the action probabilities corresponding to `beta = 5`, they still chose `Arm 2` 43% of the time. Sure, the probability of choosing `Arm 2` was about 10% during that time and doing so corresponds to flipping heads on a coin 1000 times in a row, but it is still **possible**. Critically, though, it isn't very **likely**, and in fact the data makes much more sense (i.e., the data is much more **likely**) if `beta` instead equals `0.5`. It turns out that we can quantify just *how* likely the data is in each case. By trying out many different candidate parameter values we can determine what the most likely parameters are given the data.
 
 #### Bayes Rule
 
-The critical equation underlying parameter estimation is [Bayes rule](https://towardsdatascience.com/what-is-bayes-rule-bb6598d8a2fd). Bayes rule states that the probability of our parameters given our data is proportional to the probability of our data given a parameter multiplied by the prior probability of the parameters. We want to know the parameters given the data, and can use the probability of data given parameters and our prior beliefs about the parameters to estimate it.
+Before we get into specifics of maximizing our data likelihood, a brief aside on [Bayes rule](https://towardsdatascience.com/what-is-bayes-rule-bb6598d8a2fd). Bayes rule is what allows us to estimate parameter likelihoods. It states that the **probability of our parameters given our data** (given this data, what are those most likely parameters?) is proportional to the **probability of our data given a parameter** multiplied by the prior probability of the parameters. In order to figure out the most likely parameters we actually need to start with the likelihood of the data first.
 
 >To quote Nathaniel Daw 2009, "This equation famously shows how to start with a theory of how parameters (noisily) produce data, and invert it into a theory by which data (noisily) reveal the parameters the produced it".
-
-We have already seen how parameters noisily produce data, now our job is to invert it using Bayes rule to reveal parameters given data.
 
 Resources:
 - towardsdatascience.com [Intuitive Derivation of Bayes Rule](https://towardsdatascience.com/bayes-theorem-the-holy-grail-of-data-science-55d93315defb) article.
 - Another towardsdatascience [article].(https://towardsdatascience.com/bayes-rule-applied-75965e4482ff)
 
-#### Estimating our parameters
+#### Calculating Data Likelihood
 
-Learning the math behind parameter estimation is best explained by the experts! Again, Nathaniel Daw's 2009 [*Trial-by-trial data analysis using computational models*](http://www.princeton.edu/~ndaw/d10.pdf). We will not go into the details of parameters estimation here, but in brief, our algorithm will choose many different parameter values. How these parameters are chosen is somewhat complicated and many different techniques exist. For each parameter that is chosen, the model calculates how likely the data we observed would be given those parameters. The model continues trying increasingly better parameter estimates until it arrives at a mininum.
+The likelihood of data given the parameters is equal to the probability of each individual data point (i.e., each action) multiplied together. So, referring back to the probability graphs, suppose our agent pick `Arm 2` on the first trial. How likely was that? Well, the probability was 50%, or `0.5`. Going with the upper graph corresponding to `beta = 5`, if on Trial 750 our agent picked `Arm 2` again, how likely was that? This time, about 10%, or `0.1`. We can do this for every single trial just by looking at the probability of each arm at each trial as shown in our graph. To get the likelihood of our data we simply multiply each of these probabilities together.
+
+> **IMPORTANT NOTE:** This isn't quite the full story, because it turns out that if you  multiply all of the probabilities together (0.5 * 0.3 * 0.9 * 0.1 * ...), especially if you are finding the probability of 1000 trials, you get what is called **arithmetic underflow**. That is, the overall probability becomes so incredibly small that most computers lack the numerical precision to represent them. The solution to this is to instead multiply the **log** of the probabilities instead of multiplying them. **log** values are considerably more stable and more immune to underflow. This is called **maximizing the log likelihood**.
+
+As you might be noticing, the **probability of each action** is just the `choice probability` calculated using a softmax function from our simulation. At each given time point, our agent used the softmax function to calculate probabilities for each action. Thus, we the observers can now do the exact same thing to figure out how likely the actions were. What we are doing here is the following:
+
+1. Again, start by specifying parameters.
+2. At trial n, our participant had done A actions and received R rewards.
+3. Given the `learning rate` we specified, our agent should have updated their Q values to correspond to these values, `Q1` and `Q2`.
+4. Given the `inverse temperature` parameter we specified and `Q1` and `Q2`, our agent should have calculated the choice probabilities as `P1` and `P2`.
+5. We already know that our participant chose `Arm 1` on this trial, so the likelihood of that action was `Q1` (and vice versa if `Arm 2`).
+6. Repeating this for all trials, we get the probability of all the actions.
+7. Next we change the parameters to new values.
+8. We repeat this until some arbitrary stopping point and then decide in which iteration the likelihood of the data was the greatest. The parameters that correspond to this iteration become our parameter estimates.
 
 #### Stan (and Rstan)
 
@@ -486,7 +520,9 @@ There are many different software packages for doing modeling. We will be using 
 
 > Check out the [RStan Documentation](https://mc-stan.org/docs/2_23/stan-users-guide-2_23.pdf)! Be sure to search for any functions that are used below that are confusing, such as `target` or `log_softmax`.
 
-#### Code for Parameter estimation using RStan
+## Code for Parameter estimation using RStan
+
+Next we will actually perform the **parameter estimation** explained above.
 
 > Remember to first install RStan! `install.packages("rstan", repos = "https://cloud.r-project.org/", dependencies = TRUE)`
 
@@ -518,7 +554,7 @@ Here we specify what parameters our model is estimating. We add constraints to t
 
 ##### Transformed Parameters
 
-The below code specifies two other "parameters", namely a vector containing Q-values and a prediction error parameter. Note that these are not the same as the parameters being estimated, hence they are called "transformed parameters". The Q-value and the prediction error are initialized, and then below that the model specifies how the Q-value should have changed given the reward feedback on each trial, and given the parameters that we are currently estimating.
+The below code specifies two other "parameters", namely a vector containing Q-values and a prediction error parameter. Note that these are not the same as the parameters being estimated, hence they are called "transformed parameters". The Q-value and the prediction error are initialized, and then below that the model specifies how the Q-value should have changed given the reward feedback on each trial, and given the parameters that we are currently estimating. The transformed parameters are important for estimating the probability of each trial, since we will need to calculate what the Q-values were at each trial (given our candidate `alpha`) and then use these Q-values and our candidate `beta` to calculate the probability of action n at trial n.
 
 ```
 transformed parameters {
@@ -555,13 +591,13 @@ transformed parameters {
 }
 ```
 
-As you look through this, you will notice that it is remarkably similar to the data generation script we ran earlier. That is because it is! The transformed parameters models the exact same process as before - updating Q-values based on actions, results and the associated prediction errors. The difference here is that we don't stochastically choose the next action based on the softmax function - the actions have already been made! Instead we are estimating how well we are able to predict the actions the agent makes based on our current guess of what the parameters are.
+As you look through this, you will notice that it is remarkably similar to the data generation script we ran earlier. That is because it is! The transformed parameters models the exact same process as before - updating Q-values based on actions, results and the associated prediction errors. The difference here is that we don't stochastically choose the next action based on the softmax function - the actions have already been made! Instead we are calculating what the action probabilities would have been at that trial (given the candidate parameters we are currently testing) in order to determine what the probability of the action that was picked was.
 
 > Notice that this script is deterministic, not stochastic. Since we already know the actions and results, we are instead (arbitrarily at first) choosing some alpha and beta and then seeing what the Q-values overtime would look like given those choices and actions. These Q-values then let us calculate how likely those actions would have been. The more likely, the better our parameter guesses must be.
 
 ##### Model
 
-First we specify some priors for our parameters. Because we have no information yet, we are choosing uninformative priors. Next, our model iterates over hundreds of parameter estimates. For each parameter estimate, it loops through all the trials and calculates the probability of the arm choices.
+First we specify some priors for our parameters. Because we have no information yet, we are choosing uninformative priors. Next, our model iterates over hundreds of parameter estimates. For each parameter estimate, it loops through all the trials and calculates the probability of the arm choice that was made, using the same softmax function our agent used when we simulated our data earlier.
 
 ```
 model {
@@ -571,7 +607,6 @@ model {
 
   for (trial in 1:nTrials) {
     //returns the probability of having made the choice you made, given your beta and your Q's
-    //(as you would have had given that beta value and the deterministic function in transformed parameters.)
     target += log_softmax(Q[trial] * beta)[armChoice[trial]];
   }
 ```
@@ -608,7 +643,7 @@ transformed parameters {
 
       //if first trial, initialize Q and delta values as specified
       for (a in 1:nArms) {
-        Q[1, a] = 0.5; //where 1 refers to it being the first trial
+        Q[1, a] = 0;
         delta[1, a] = 0;
       }
 
@@ -637,15 +672,14 @@ model {
 
   for (trial in 1:nTrials) {
     //returns the probability of having made the choice you made, given your beta and your Q's
-    //(as you would have had given that beta value and the deterministic function in transformed parameters.)
     target += log_softmax(Q[trial] * beta)[armChoice[trial]];
   }
 }
 ```
 
-##### Script for running RL_model.stan using RStan:
+#### Script for running RL_model.stan using RStan:
 
-Next, run this script in a new RScript. be sure to check out [RStan documentation](https://mc-stan.org/docs/2_23/stan-users-guide-2_23.pdf) for clarification of the various functions. RStan is very complicated so these functions just barely scratch the surface.
+Next, run this script in a new RScript. be sure to check out [RStan documentation](https://mc-stan.org/docs/2_23/stan-users-guide-2_23.pdf) for clarification of the various functions.
 
 ```
 library("rstan") # observe startup messages
@@ -667,6 +701,51 @@ fit$par[1]
 fit$par[2]
 ```
 
-If everything has gone well, you have now simulated data for an agent. You specified a learning rate and inverse temperature. Next, you ran an RStan model to create a parameter estimate of these. Hopefully the alpha and beta estimates approximated the original values you specified!
+If everything goes well, you should get parameter estimates for `alpha` and `beta`. For example, I was able to get an `alpha` estimate of `0.0119504` and a `beta` estimate of `7.666186`. While not exactly correct to our correct parameters of `alpha = 0.01` and `beta = 5`, they are remarkably close.
+
+>**Note:** Since the agent simulation is stochastic, you will certainly get different parameter estimates since the inputted data will be different.
+
+#### Looking inside the model fit
+
+The `optimizing` stan function returns point estimates of the parameters by maximizing the joint posterior (log) likelihood. While these are great at getting approximate values, there is very little sense about how close these estimates are to the correct values. To do that we will need to perform a more model fitting using the [sampling](https://mc-stan.org/rstan/reference/stanmodel-method-sampling.html) function. The `sampling` function allows us to see distributions of possible parameter values, which will hopefully give us a sense of how well our model is able to estimate the correct parameters.
+
+``` R
+library("rstan") # observe startup messages
+library("tidyverse")
+
+setwd("~/Documents/Programming/RL Modeling")
+
+df <- read_csv("Generated_Data.csv")
+model_data <- list( nArms = length(unique(df$choices)),
+                    nTrials = nrow(df),
+                    armChoice = df$choices,
+                    result = df$rewards)
+my_model <- stan_model(file = "RL_model.stan")
+
+sample <- sampling(object = my_model, data = model_data)
+
+plot(sample, plotfun = "hist", pars= "alpha")
+plot(sample, plotfun = "hist", pars= "beta")
+```
+![alt text](images/alpha_post_distribution.png)
+![alt text](images/beta_post_distribution.png)
+
+As you can see, the `alpha` estimate nicely contains our correct value of `0.01`, whereas our `beta` does not contain the correct value of `5`. Your estimates might be different - again, since our data is quite noisy there is necessarily a lot of noise in estimating our parameters.
+
+To get a sense of just how close our estimates are we can use the `summary` RStan function `summary(sample)`, which returns the mean, standard error, standard deviation, etc of these distributions for each parameter.
+
+We can further visualize our model fits using the [ShinyStan](https://mc-stan.org/users/interfaces/shinystan) package. Simply install the package `install.packages("shinystan")` before proceeding.
+
+``` R
+library("shinystan")
+
+launch_shinystan(sample)
+```
+
+While the features of shinystan won't be covered here, feel free to explore to see the intricacies of the model fit we just performed.
 
 -----
+
+There is a lot more to RStan model fitting and reinforcement learning generally, but those concepts are outside the scope of this tutorial. Hopefully you can now appreciate the math underlying reinforcement learning, as well as learned some basics about how we might estimate parameters using the likelihood of data. There are links throughout this tutorial to other resources that are much more comprehensive if you find these interesting.
+
+Thanks for reading, and again, please let me know if you have any suggestions for improvements (or just want to say hi!) at raphael.geddert@duke.edu
