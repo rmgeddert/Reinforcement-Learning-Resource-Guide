@@ -506,7 +506,7 @@ As you might be noticing, the **probability of each action** is just the `choice
 2. At trial n, our participant had done A actions and received R rewards.
 3. Given the `learning rate` we specified, our agent should have updated their Q values to correspond to these values, `Q1` and `Q2`.
 4. Given the `inverse temperature` parameter we specified and `Q1` and `Q2`, our agent should have calculated the choice probabilities as `P1` and `P2`.
-5. We already know that our participant chose `Arm 1` on this trial, so the likelihood of that action was `Q1` (and vice versa if `Arm 2`).
+5. We already know that our participant chose `Arm 1` on this trial, so the likelihood of that action was `P1` (and vice versa if `Arm 2`).
 6. Repeating this for all trials, we get the probability of all the actions.
 7. Next we change the parameters to new values.
 8. We repeat this until some arbitrary stopping point and then decide in which iteration the likelihood of the data was the greatest. The parameters that correspond to this iteration become our parameter estimates.
@@ -707,7 +707,7 @@ If everything goes well, you should get parameter estimates for `alpha` and `bet
 
 #### Looking inside the model fit
 
-The `optimizing` stan function returns point estimates of the parameters by maximizing the joint posterior (log) likelihood. While these are great at getting approximate values, there is very little sense about how close these estimates are to the correct values. To do that we will need to perform a more model fitting using the [sampling](https://mc-stan.org/rstan/reference/stanmodel-method-sampling.html) function. The `sampling` function allows us to see distributions of possible parameter values, which will hopefully give us a sense of how well our model is able to estimate the correct parameters.
+The `optimizing` stan function returns point estimates of the parameters by maximizing the joint posterior (log) likelihood. While these are great at getting approximate values, there is very little sense about how close these estimates are to the correct values. To do that we will need to perform a more intensive model fitting using the [sampling](https://mc-stan.org/rstan/reference/stanmodel-method-sampling.html) function. The `sampling` function allows us to see distributions of possible parameter values, which will hopefully give us a sense of how well our model is able to estimate the correct parameters.
 
 ``` R
 library("rstan") # observe startup messages
