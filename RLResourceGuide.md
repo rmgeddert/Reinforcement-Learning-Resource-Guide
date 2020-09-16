@@ -8,7 +8,6 @@ This is a resource guide/tutorial for those interested in reinforcement learning
 - Reinforcement Learning Introduction
 - Background Resources (Math, statistics, modeling, programing)
 - Tutorial - Modeling an RL agent performing a k-armed bandit task
-- Deep RL (tbd)
 
 ------
 
