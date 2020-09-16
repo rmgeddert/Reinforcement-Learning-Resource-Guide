@@ -118,7 +118,7 @@ data_out <- "C:/Users/..." #the folder where you want the data to be outputted
 nTrials <- 1000 #number of trials to model
 nArms <- 2 #number of bandit arms
 banditArms <- c(1:nArms) #array of length nArms
-armProbabilities <- c(0.7, 0.3) #probability of returning reward for each arm
+armRewardProbabilities <- c(0.7, 0.3) #probability of returning reward for each arm
 ```
 
 ### Step 1: Representing each Arm's *Expected Value*
@@ -148,16 +148,16 @@ Next, we need to determine what our **action policy** is. Given a set of Q-value
 
 On any given trial, which arm should the agent choose? As described above, we could be entirely random (a random policy), or we could always pick the action with the highest Q-value (a greedy policy). Neither of these are optimal, so we will use something a little more nuanced that considers the Q-values of the various actions to determine the probabilities of choosing them.
 
-Enter the [softmax function](https://en.wikipedia.org/wiki/Softmax_function). The softmax function takes a set of numbers as an input (in our case the Q-values of the actions) and returns a set of probabilities proportional to each value. That is, the higher the Q-value compared to other values, the higher the probability associated with that action. More specifically, each action probability is proportional to the exponential of its corresponding Q-value, normalized by the exponential of all the Q-values. **Here is a great [medium article](https://medium.com/data-science-bootcamp/understand-the-softmax-function-in-minutes-f3a59641e86d) explaining it.**
+Enter the [softmax function](https://en.wikipedia.org/wiki/Softmax_function). The softmax function takes a set of numbers as an input (in our case the Q-values of the actions) and returns a set of probabilities proportional to each value. That is, the higher the Q-value compared to other values, the higher the probability associated with that action. More specifically, the probability *p* of performing action *a* is equal to the exponential of its corresponding Q-value `e^(Q-value)`, divided by the sum of the exponentials of all the Q-values `sum over all options(e^Q-value)`. **Here is a great [medium article](https://medium.com/data-science-bootcamp/understand-the-softmax-function-in-minutes-f3a59641e86d) explaining it.**
 
 ![alt text](images/Softmax_Udacity.png)
 <br>Udacity Slide on the Softmax Function
 
-Linguistically, the softmax function is a **"soft"** maximum in the sense that it picks the maximum but is "soft" about it, sometimes it will pick another option instead. Consider a "hard" max function, which would always choose the best option (highest Q-value). The equation for the softmax function is: `e^(Q-value) / sum over all Q-values(e^(Q-value))`.
+Linguistically, the softmax function is a **"soft"** maximum in the sense that it picks the maximum but is "soft" about it; sometimes it will pick another option instead. A "hard" max function, on the other hand, would always choose the best option (highest Q-value), without considering *how much* higher this Q-value was than the other options. The equation for the softmax function is: `e^(Q-value) / sum over all Q-values(e^(Q-value))`.
 
 > Softmax function: the probability of choosing a given Q-value is `e^(Q-value)` divided by `the sum of e^(Q-value) for all arms/Q-values in the set`.
 
-The softmax function is great because it weights action probabilities by their associated Q-values. If our Q-value estimates for two actions are very different, say we think `Arm 1` has an expected reward of 1000 and `Arm 2` has an expected reward of 5, then we want to be very likely to choose `Arm 1`. Alternatively, if our Q-value estimates are very close together, say we think `Arm 1` has an expected reward of 12 and `Arm 2` has an expected reward of 10, then we might want to be a bit more exploratory since it quite possible that `Arm 2` is in fact just as good if not better than `Arm 1`.
+The softmax function is great because it weighs action probabilities by their associated Q-values, and normalizes Q-values by how the compare to other actions. If our Q-value estimates for two actions are very different - say we think `Arm 1` has an expected reward of 1000 and `Arm 2` has an expected reward of 5 - then we want to be very likely to choose `Arm 1`. Alternatively, if our Q-value estimates are very close together, say we think `Arm 1` has an expected reward of 12 and `Arm 2` has an expected reward of 10, then we might want to be a bit more exploratory since it quite possible that `Arm 2` is in fact just as good if not better than `Arm 1`.
 
 Additionally, the softmax function has no problems handling Q-values that are 0 or even negative, allowing it to flexibly adapt to a variety of situations.
 
@@ -192,16 +192,17 @@ We will initialize a beta value (let's pick 5, a slightly greedier policy), as w
 
 ``` R
 beta <- 5 #inverse temperature
-choices <- vector(length = nTrials)
-choiceProbs <- vector(length = length(banditArms))
-trialChoiceProbs <- matrix(data = NA, nrow = nTrials, ncol = nArms) #probabilities at each time step
+choices <- vector(length = nTrials) #stores the choice made on each trial (which arm was picked)
+choiceProbs <- vector(length = length(banditArms)) #contains the probabilities associated with choosing each action
+trialChoiceProbs <- matrix(data = NA, nrow = nTrials, ncol = nArms) #stores probabilities at each time step
 ```
 
 Later on in the code we will also have to calculate the choice probabilities given their Q-values for each trial. This will look like this:
 
 ```R
-For (trial in 1:nTrials) {
+for (trial in 1:nTrials) {
   #calculate sumExp for softmax function
+  #sumExp is the sum of exponents i.e., what we divide by in our softmax equation
   sumExp <- 0
   for (arm in banditArms) {
       sumExp <- sumExp + exp(beta * currentQs[arm])
@@ -231,7 +232,7 @@ Now that we have a policy for choosing actions, how do we learn from those actio
 
 Learning happens whenever our expectations don't match our experience. So, if our Q-value for Arm 1 is 0.5 (suggesting a 50% chance of reward) and yet we notice that we are receiving reward more than 50% of the time, then we should increase our Q-value until it matches reality.
 
-Practically, all we need to do is increase the Q-value every time we receive a reward and decrease the Q-value every time we don't receive a reward. By doing this we will eventually approximate the correct reward rate (but see below). We calculate the **prediction error** as the **difference between our Q-value and the actual reward outcome**. In our example our reward outcome will either 0 or 1 depending on the lever pull.
+Practically, all we need to do is increase the Q-value every time we receive a reward and decrease the Q-value every time we don't receive a reward. By doing this we will eventually approximate the correct reward rate (but see below). We calculate the **prediction error** as the **difference between our Q-value and the actual reward outcome**. In our example our reward outcome will either be 0 or 1 depending on the lever pull.
 
 >Say our Q-value is equal to $10. We expect a $10 reward on the next trial. After pulling the lever, we get a $25 reward. This reward is $15 greater than our expectation, so our prediction error is +$15.
 >
@@ -239,34 +240,49 @@ Practically, all we need to do is increase the Q-value every time we receive a r
 
 Notice that our prediction error is **positive** when the result is greater than our expectation and **negative** when the result is less than our expectation.
 
-##### Learning Rate/Discount Factor
+##### Learning Rate
 
-We raise our Q-value every time we get a reward and decrease it when we don't. **By how much do we change our Q value?** Enter the **learning rate**, which determines how much we update our Q-values based on a prediction error.
+We raise our Q-value every time we get a reward and decrease it when we don't. **By how much do we change our Q value?** Enter the **learning rate** (`alpha`), which determines how much we update our Q-values based on a prediction error.
 
-The learning rate tells us how much each new piece of information should impact our expectations. It is a value between 0 and 1 that the prediction error is multiplied by. The formula we will use to update our Q-values is `Updated Q-value = Old Q-value + learning rate * (Reward - Old Q-value)`, where `(Reward - Old Q-Value)` is the prediction error described above. To better understand what the learning rate is doing, consider the following extreme values for the learning rate on our example above.
+The learning rate tells us how much each new piece of information should impact our expectations. It is a value between 0 and 1 that the prediction error is multiplied by. The formula we will use to update our Q-values is `Updated Q-value = Old Q-value + learning rate alpha * (Reward - Old Q-value)`, where `(Reward - Old Q-Value)` is the prediction error described above. To better understand what the learning rate is doing, consider the following extreme values for the learning rate on our example above.
+
+##### Learning Rate Example
+
+Let's imagine that we have a single bandit arm, `Arm 1`. We don't know anything about this arm yet, except that it sometimes gives us `reward = 0` and sometimes `reward = 1`. Since we don't know anything about the reward likelihood, let's set our initial Q-value (our guess of expected reward), at `0.5`. We pull the arm, and we receive a reward! So, `Q-value = 0.5` and `reward = 1`. Let's see how our Q-value gets updated using various learning rates.
+
+---
 
 `learning rate = 0`:
 
-Let's keep with our previous example where `Q-value = 0.52` and `reward = 1`.
+If the learning rate `alpha = 0`, we can plug all our values into the Q-value updating formula above. Our new Q-value is: `Updated Q-value = 0.5 + 0 * (1 - 0.5)`, where `0.5` is our Old Q-value, `0` is our learning rate, and `(1 - 0.5)` is the prediction error. Solving this we get `0.5 + 0 * (0.5) = 0.5 + 0 = 0.5`. Our new Q-value is identical to our old Q-value!
 
-If the learning rate is `0`, then plugging into the formula above, our new Q-value is: `Updated Q-value = 0.52 + 0 * (1 - 0.52) = 0.52 + 0 = 0.52`. Our Q-value didn't change at all!
+---
 
 `learning rate = 1`:
 
-Let's try `learning rate = 1`. `Updated Q-value = 0.52 + 1 * (1 - 0.52) = 0.52 + 1(0.48) = 0.52 + 0.48 = 1`. Our new Q-value is 1!
+Let's try `alpha = 1` instead. `Updated Q-value = 0.5 + 1 * (1 - 0.5)` => `0.5 + 1(0.5)` => `0.5 + 0.5` => `1`. Our new Q-value is 1!
 
-Let's try another trial, this time `reward = 0`. Our Q-value from the previous trial that we just calculated will be our new `old Q-value`. `Updated Q-value = 1 + 1 * (0 - 1) = 1 + 1(-1) = 1 - 1 = 0`. Now our Q-value is 0!
+Let's try another trial, this time `reward = 0`. The new Q-value from that we just calculated will be our new `old Q-value`. `Updated Q-value = 1 + 1 * (0 - 1)` => `1 + 1(-1)` => `1 - 1` => `0`. Now our Q-value is 0!
 
 > It turns out that if `learning rate = 1` then we will update our Q-value to exactly match the reward on that trial. In effect it will bounce back and forth between 0 and 1 forever and never *converge* on the real reward rate. This is what happens when the learning rate is too high.
 
-To summarize, if the learning rate is low, we will make small changes to our Q-value. The change approaches 0 as the learning rate approaches 0. If the learning rate = 0 we don't move at all. **If our learning rate is too low, it can take many many trials to converge on the right value.**
+---
+`learning rate = 0.1`:
 
-If our learning rate is large (close to 1) then we will make big changes to our Q-value. If the learning rate = 1, we will update our Q-value to exactly match the reward outcome of the previous trial. **If our learning rate is too large, we will never converge on the right value because we will always bounce past it**.
+Finally, let's try a more reasonable `alpha = 0.1`.
+
+`Updated Q-value = 0.5 + 0.1 * (1 - 0.5)` => `0.5 + 0.1(0.5)` => `0.5 + 0.05` => `0.55`. Our Q-value adjusted slightly upwards from `0.5` to `0.55`. This is what we want! Overtime, we'll eventually approximate the correct reward approximation.
+
+---
+
+To summarize, if the learning rate is low, we will make small changes to our Q-value. The change approaches 0 as the learning rate approaches 0. If the learning rate = 0 we don't move at all. **If our learning rate is too low, it can take many many trials to converge to the right value.**
+
+If our learning rate is large (close to 1) then we will make big changes to our Q-value. If the learning rate = 1, we will update our Q-value to exactly match the reward outcome of the previous trial. **If our learning rate is too large, we will never converge on the right value because we will always jump past it**.
 
 A reasonable value for the learning rate is `0.01`, though there is a lot of variation here and many different techniques for changing it dynamically.
 
 ##### Note:
-An alternative way to think about the learning rate is *how many trials in the past should I consider when setting my Q-value?* In this conceptualization it is often known as a **discount factor**.
+An alternative way to think about the learning rate is *how many trials in the past should I consider when setting my Q-value?*
 - If learning rate = 1 we only consider the most recent trial, whatever our result, that is our new Q-value.
 - As the learning rate approaches 0, each new trial is less informative so in effect we consider more and more previous trials in determining what our Q-value should be.
 
@@ -286,8 +302,8 @@ rewards <- vector(length = nTrials)
 In our trial loop, we now add code that gets a reward based on the choice we made, and stores it in the `rewards` vector. Then, we update our Q-value for the arm that we chose based on this reward. We'll also save these Q-values in a matrix so we can visualize the Q-values afterwards.
 
 ``` R
-  #given bandit arm choice, get reward outcome (based on armProbabilities)
-  rewards[trial] <- rbinom(1,size = 1,prob = armProbabilities[choices[trial]])
+  #given bandit arm choice, get reward outcome (based on armRewardProbabilities)
+  rewards[trial] <- rbinom(1,size = 1,prob = armRewardProbabilities[choices[trial]])
 
   #given reward outcome, update Q values
   currentQs[choices[trial]] <- currentQs[choices[trial]] + alpha * (rewards[trial] - currentQs[choices[trial]])
@@ -319,7 +335,7 @@ data_out <- "C:/Users/..." #the folder where you want the data to be outputted
 nTrials <- 1000
 nArms <- 2 #try a different here instead
 banditArms <- c(1:nArms)
-armProbabilities <- c(0.7, 0.3) #each arm needs its own reward probability
+armRewardProbabilities <- c(0.7, 0.3) #each arm needs its own reward probability
 alpha <- .01 #learning rate, play around with this
 beta <- 5 #inverse temperature, and with this
 Qi <- 0 #initial Q values
@@ -354,8 +370,8 @@ for (trial in 1:nTrials) {
     # choose action given choice probabilities, save in choices vector
     choices[trial] <- sample(banditArms, size = 1, replace = FALSE, prob = choiceProbs)
 
-    #given bandit arm choice, get reward outcome (based on armProbabilities)
-    rewards[trial] <- rbinom(1,size = 1,prob = armProbabilities[choices[trial]])
+    #given bandit arm choice, get reward outcome (based on armRewardProbabilities)
+    rewards[trial] <- rbinom(1,size = 1,prob = armRewardProbabilities[choices[trial]])
 
     #given reward outcome, update Q values
     currentQs[choices[trial]] <- currentQs[choices[trial]] + alpha * (rewards[trial] - currentQs[choices[trial]])
@@ -406,7 +422,7 @@ ggplot(data=Qvalues_long, aes(x = trialCount, y = value, color = variable)) +
 
 As you can see, our Q values begin at our initial value of `0`. As the agent chooses actions over time, it updates the Q-values until they eventually approximate the correct Q-values of `0.7` for **Arm 1** and `0.3` for **Arm 2**.
 
-One important thing to notice is that the Q values for **Arm 1** both better approximates the correct value of `0.7` and are significantly more variable. This is a result of our inverse temperature parameter. Since our agent is fairly greedy (`beta` = 5 which is greater than 1), our agent chooses **Arm 1** significantly more often than **Arm 2** and it can learn **Arm 1**'s correct Q value better and these get updated more frequently.
+One important thing to notice is that the Q values for **Arm 1** both better approximate the correct value of `0.7` and are significantly more variable. This is a result of our inverse temperature parameter. Since our agent is fairly greedy (`beta` = 5 which is greater than 1), our agent chooses **Arm 1** significantly more often than **Arm 2** and it can learn **Arm 1**'s correct Q value better and these get updated more frequently.
 
 One way to visualize this greediness is by plotting the choice probabilities for each arm as they evolve over time:
 
@@ -496,7 +512,7 @@ Resources:
 
 #### Calculating Data Likelihood
 
-The likelihood of data given the parameters is equal to the probability of each individual data point (i.e., each action) multiplied together. So, referring back to the probability graphs, suppose our agent pick `Arm 2` on the first trial. How likely was that? Well, the probability was 50%, or `0.5`. Going with the upper graph corresponding to `beta = 5`, if on Trial 750 our agent picked `Arm 2` again, how likely was that? This time, about 10%, or `0.1`. We can do this for every single trial just by looking at the probability of each arm at each trial as shown in our graph. To get the likelihood of our data we simply multiply each of these probabilities together.
+The likelihood of data given the parameters is equal to the probability of each individual data point (i.e., each action) multiplied together. So, referring back to the probability graph (with `beta = 5`), suppose our agent pick `Arm 2` on the first trial. As we can see, the probability of choosing `Arm 2` was 50%, or `0.5`. If on Trial 750 our agent picked `Arm 2` again. Here, a `beta` of 5 assigns the probability of choosing `Arm 2` at 10%, or `0.1`. We can get the likelihood of every action just by looking at the choice probability of the arm the agent chose at each trial, which was calculated using the softmax equation. To get the overall likelihood of our data we then simply multiply each of these probabilities together.
 
 > **IMPORTANT NOTE:** This isn't quite the full story, because it turns out that if you  multiply all of the probabilities together (0.5 * 0.3 * 0.9 * 0.1 * ...), especially if you are finding the probability of 1000 trials, you get what is called **arithmetic underflow**. That is, the overall probability becomes so incredibly small that most computers lack the numerical precision to represent them. The solution to this is to instead multiply the **log** of the probabilities instead of multiplying them. **log** values are considerably more stable and more immune to underflow. This is called **maximizing the log likelihood**.
 
@@ -559,34 +575,32 @@ The below code specifies two other "parameters", namely a vector containing Q-va
 ```
 transformed parameters {
   vector<lower=0, upper=1>[nArms] Q[nTrials];  // value function for each arm
-  real delta[nTrials, nArms];  // prediction error
+  real delta[nTrials];  // prediction error
 
   for (trial in 1:nTrials) {
 
     //set initial Q and delta for each trial
     if (trial == 1) {
 
-      //if first trial, initialize Q and delta values as specified
+      //if first trial, initialize Q values as specified
       for (a in 1:nArms) {
         Q[trial, a] = 0;
-        delta[1, a] = 0;
       }
 
     } else {
 
-      //otherwise, carry forward Q and delta from last trial to serve as initial value
+      //otherwise, carry forward Q from last trial to serve as initial value
       for (a in 1:nArms) {
         Q[trial, a] = Q[trial - 1, a];
-        delta[trial, a] = 0;
       }
 
     }
 
     //calculate prediction error and update Q (based on specified beta)
-    delta[trial, armChoice[trial]] = result[trial] - Q[trial, armChoice[trial]];
+    delta[trial] = result[trial] - Q[trial, armChoice[trial]];
 
     //update Q value based on prediction error (delta) and learning rate (alpha)
-    Q[trial, armChoice[trial]] = Q[trial, armChoice[trial]] + alpha * delta[trial, armChoice[trial]];
+    Q[trial, armChoice[trial]] = Q[trial, armChoice[trial]] + alpha * delta[trial];
   }
 }
 ```
@@ -634,34 +648,32 @@ parameters {
 
 transformed parameters {
   vector<lower=0, upper=1>[nArms] Q[nTrials];  // value function for each arm
-  real delta[nTrials, nArms];  // prediction error
+  real delta[nTrials];  // prediction error
 
   for (trial in 1:nTrials) {
 
     //set initial Q and delta for each trial
     if (trial == 1) {
 
-      //if first trial, initialize Q and delta values as specified
+      //if first trial, initialize Q values as specified
       for (a in 1:nArms) {
         Q[1, a] = 0;
-        delta[1, a] = 0;
       }
 
     } else {
 
-      //otherwise, carry forward Q and delta from last trial to serve as initial value
+      //otherwise, carry forward Q from last trial to serve as initial value
       for (a in 1:nArms) {
         Q[trial, a] = Q[trial - 1, a];
-        delta[trial, a] = 0;
       }
 
     }
 
     //calculate prediction error and update Q (based on specified beta)
-    delta[trial, armChoice[trial]] = result[trial] - Q[trial, armChoice[trial]];
+    delta[trial] = result[trial] - Q[trial, armChoice[trial]];
 
     //update Q value based on prediction error (delta) and learning rate (alpha)
-    Q[trial, armChoice[trial]] = Q[trial, armChoice[trial]] + alpha * delta[trial, armChoice[trial]];
+    Q[trial, armChoice[trial]] = Q[trial, armChoice[trial]] + alpha * delta[trial];
   }
 }
 
