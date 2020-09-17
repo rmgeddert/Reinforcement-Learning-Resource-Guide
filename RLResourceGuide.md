@@ -507,7 +507,7 @@ Before we get into specifics of maximizing our data likelihood, a brief aside on
 
 Resources:
 - towardsdatascience.com [Intuitive Derivation of Bayes Rule](https://towardsdatascience.com/bayes-theorem-the-holy-grail-of-data-science-55d93315defb) article.
-- Another towardsdatascience [article].(https://towardsdatascience.com/bayes-rule-applied-75965e4482ff)
+- Another towardsdatascience [article](https://towardsdatascience.com/bayes-rule-applied-75965e4482ff)
 
 #### Calculating Data Likelihood
 
